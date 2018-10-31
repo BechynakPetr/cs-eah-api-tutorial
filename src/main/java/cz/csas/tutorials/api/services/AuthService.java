@@ -59,7 +59,7 @@ public class AuthService {
         return code;
     }
 
-    public String changeCodeForToken(String code, String clientId, String secret) {
+    public TokenResponse changeCodeForToken(String code, String clientId, String secret) {
         String tokenUri = environment.getProperty("tokenUri");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -67,6 +67,24 @@ public class AuthService {
         MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
         map.add("grant_type", "authorization_code");
         map.add("code", code);
+        map.add("client_id", clientId);
+        map.add("client_secret", secret);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
+        ResponseEntity<TokenResponse> tokenEntity = restTemplate.postForEntity(tokenUri, request, TokenResponse.class);
+        if (tokenEntity.getStatusCode().equals(OK)) {
+            return tokenEntity.getBody();
+        }
+        return null;
+    }
+
+    public String refreshToken(String refreshToken, String clientId, String secret) {
+        String tokenUri = environment.getProperty("tokenUri");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+        map.add("grant_type", "refresh_token");
+        map.add("refresh_token", refreshToken);
         map.add("client_id", clientId);
         map.add("client_secret", secret);
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
