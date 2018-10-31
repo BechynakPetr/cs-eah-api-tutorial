@@ -28,7 +28,6 @@ public class CorpService {
     public String getCorpAccounts(String token, String webApiKey, String page, String size, String sort, String order) throws ExpiredTokenException {
         Map<String, String> uriParams = new HashMap<>();
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(environment.getProperty("corpAccountsUrl"))
-                // Add query parameter
                 .queryParam("page", page)
                 .queryParam("size", size)
                 .queryParam("sort", sort)
@@ -46,13 +45,31 @@ public class CorpService {
         return accounts.getBody();
     }
 
+    public String getCorpAccBalance(String token, String webApiKey, String id) throws ExpiredTokenException {
+        Map<String, String> uriParams = new HashMap<>();
+        uriParams.put("id", id);
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(environment.getProperty("corpAccBalanceUrl"));
+        String corpAccountsUrl = builder.buildAndExpand(uriParams).toString();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer " + token);
+        headers.add("web-api-key", webApiKey);
+        HttpEntity<Object> entity = new HttpEntity<>(headers);
+        ResponseEntity<String> accounts = restTemplate.exchange(corpAccountsUrl, HttpMethod.GET, entity, String.class);
+        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())){
+            throw new ExpiredTokenException("Token has expired.");
+        }
+        return accounts.getBody();
+    }
+
+
     public String getTransHistory(String id, String token, String webApiKey, String page, String size, String sort, String order,
                                   String dateStart, String dateEnd) throws ExpiredTokenException {
 
         Map<String, String> uriParams = new HashMap<>();
         uriParams.put("id", id);
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(environment.getProperty("corpHistoryTransUrl"))
-                // Add query parameter
                 .queryParam("page", page)
                 .queryParam("size", size)
                 .queryParam("sort", sort)

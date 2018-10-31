@@ -65,6 +65,38 @@ public class CsasApiController {
         return accounts;
     }
 
+    @GetMapping("/corpaccbalance")
+    public String getCorpAccBalance(@RequestParam(defaultValue = "1") String id) throws MalformedURLException {
+        String clientId = environment.getRequiredProperty("clientId");
+        String redirectUri = environment.getRequiredProperty("redirectUri");
+        String webApiKey = environment.getRequiredProperty("webApiKey");
+        String clientSecret = environment.getRequiredProperty("clientSecret");
+        String state = "someValue"; // useful when using redirection from id provider get-code call, not used here
+        String code = authService.getCode(redirectUri, clientId, state);
+        log.debug("Getting code. Code = " + code);
+        TokenResponse tokenResponse = authService.changeCodeForToken(code, clientId, environment.getRequiredProperty("clientSecret"));
+        String accessToken = tokenResponse.getAccessToken();
+        log.debug("Changing code for token. Token = " + accessToken); // Do not log token in production!
+        String accounts = null;
+        try {
+            accounts = corpService.getCorpAccBalance(accessToken, webApiKey, id);
+            log.debug("Calling corporate accounts balance check API. Response = " + accounts);
+        } catch (ExpiredTokenException e) {
+            String newAccessToken = authService.refreshToken(tokenResponse.getRefreshToken(), clientId, clientSecret);
+            log.debug("Refreshing access token with refresh token = " + tokenResponse.getRefreshToken()); // Do not log token in production!
+            log.debug("Obtained new access token = " + newAccessToken); // Do not log token in production!
+            try {
+                accounts = corpService.getCorpAccBalance(accessToken, webApiKey,id);
+                log.debug("Calling corporate accounts balance check API with new access token. Response = " + accounts);
+            } catch (ExpiredTokenException e1) {
+                e1.printStackTrace();
+            }
+        }
+
+        return accounts;
+    }
+
+
     @GetMapping("/corptranshist")
     public String getCorpAccounts(@RequestParam(defaultValue = "1") String id,
                                   @RequestParam(defaultValue = "0") String page,

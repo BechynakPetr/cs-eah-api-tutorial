@@ -30,7 +30,6 @@ public class PersService {
         headers.add("web-api-key", webApiKey);
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(environment.getProperty("corpAccountsUrl"))
-                // Add query parameter
                 .queryParam("page", page)
                 .queryParam("size", size)
                 .queryParam("sort", sort)
