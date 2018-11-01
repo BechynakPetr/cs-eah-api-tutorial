@@ -41,7 +41,7 @@ public class ApiTutorialsApplication {
         if (!StringUtils.isEmpty(proxyUrl) && !StringUtils.isEmpty(proxyPort) && !StringUtils.isEmpty(proxyScheme)) {
             httpClient = HttpClientBuilder.create()
                     .disableRedirectHandling()
-                    .setProxy(new HttpHost("localhost", 3128, "http"))
+                    .setProxy(new HttpHost(proxyUrl, Integer.parseInt(proxyPort), proxyScheme))
                     .build();
         } else {
             httpClient = HttpClientBuilder.create()
