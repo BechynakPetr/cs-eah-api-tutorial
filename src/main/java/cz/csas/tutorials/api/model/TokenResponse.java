@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
- * DTO object to hold response data containing token
+ * DTO object to hold response (from /token endpoint) data containing token
  */
 @Data
 public class TokenResponse {

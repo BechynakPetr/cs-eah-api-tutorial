@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,6 +26,18 @@ public class CorpService {
         this.environment = environment;
     }
 
+    /**
+     * Calls corporate accounts API
+     *
+     * @param token     access token
+     * @param webApiKey webapi key to connect to webapi
+     * @param page      number for paging (paging and sorting works only in production, not sandbox environment)
+     * @param size      of page
+     * @param sort      for results sorting
+     * @param order     asc/desc
+     * @return accounts - JSON response in String form
+     * @throws ExpiredTokenException if access token is expired
+     */
     public String getCorpAccounts(String token, String webApiKey, String page, String size, String sort, String order) throws ExpiredTokenException {
         Map<String, String> uriParams = new HashMap<>();
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(environment.getProperty("corpAccountsUrl"))
@@ -39,12 +52,21 @@ public class CorpService {
         headers.add("web-api-key", webApiKey);
         HttpEntity<Object> entity = new HttpEntity<>(headers);
         ResponseEntity<String> accounts = restTemplate.exchange(corpAccountsUrl, HttpMethod.GET, entity, String.class);
-        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())){
+        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())) {
             throw new ExpiredTokenException("Token has expired.");
         }
         return accounts.getBody();
     }
 
+    /**
+     * Calls corporate account balance
+     *
+     * @param token     access token
+     * @param webApiKey webapi key to connect to webapi
+     * @param id        account id
+     * @return balance on particular account, JSON response in String form
+     * @throws ExpiredTokenException if access token is expired
+     */
     public String getCorpAccBalance(String token, String webApiKey, String id) throws ExpiredTokenException {
         Map<String, String> uriParams = new HashMap<>();
         uriParams.put("id", id);
@@ -57,13 +79,27 @@ public class CorpService {
         headers.add("web-api-key", webApiKey);
         HttpEntity<Object> entity = new HttpEntity<>(headers);
         ResponseEntity<String> accounts = restTemplate.exchange(corpAccountsUrl, HttpMethod.GET, entity, String.class);
-        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())){
+        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())) {
             throw new ExpiredTokenException("Token has expired.");
         }
         return accounts.getBody();
     }
 
-
+    /**
+     * Calls transaction history on particular account in given time window
+     *
+     * @param id        account id
+     * @param token     access token
+     * @param webApiKey webapi key to connect to webapi
+     * @param page      number for paging (paging and sorting works only in production, not sandbox environment)
+     * @param size      of page
+     * @param sort      for results sorting
+     * @param order     asc/desc
+     * @param dateStart start of time window
+     * @param dateEnd   end of time window
+     * @return accounts - JSON response in String form
+     * @throws ExpiredTokenException if access token is expired
+     */
     public String getTransHistory(String id, String token, String webApiKey, String page, String size, String sort, String order,
                                   String dateStart, String dateEnd) throws ExpiredTokenException {
 
@@ -83,7 +119,7 @@ public class CorpService {
         headers.add("web-api-key", webApiKey);
         HttpEntity<Object> entity = new HttpEntity<>(headers);
         ResponseEntity<String> accounts = restTemplate.exchange(corpHistoryTransUrl, HttpMethod.GET, entity, String.class);
-        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())){
+        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())) {
             throw new ExpiredTokenException("Token has expired.");
         }
         return accounts.getBody();
