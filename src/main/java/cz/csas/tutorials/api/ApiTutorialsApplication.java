@@ -17,6 +17,9 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Springboot application - main class. It's goal is to show calls to CSAS API.
+ */
 @SpringBootApplication
 @Configuration
 public class ApiTutorialsApplication {

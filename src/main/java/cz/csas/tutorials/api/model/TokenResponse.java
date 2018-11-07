@@ -3,6 +3,9 @@ package cz.csas.tutorials.api.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+/**
+ * DTO object to hold response data containing token
+ */
 @Data
 public class TokenResponse {
     @JsonProperty("access_token")
