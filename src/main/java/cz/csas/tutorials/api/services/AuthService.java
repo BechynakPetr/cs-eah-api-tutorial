@@ -1,5 +1,7 @@
 package cz.csas.tutorials.api.services;
 
+import cz.csas.tutorials.api.model.ExchangeCodeForTokenException;
+import cz.csas.tutorials.api.model.GetCodeException;
 import cz.csas.tutorials.api.model.TokenResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,12 +43,11 @@ public class AuthService {
      * @return access token
      * @throws MalformedURLException if the uri is incorrect
      */
-    public TokenResponse getNewTokenResponse(String redirectUri, String clientId) throws MalformedURLException {
+    public TokenResponse getNewTokenResponse(String redirectUri, String clientId) throws MalformedURLException, GetCodeException, ExchangeCodeForTokenException {
         String state = "someValue"; // useful when using redirection from id provider get-code call, not used here
         String code = getCode(redirectUri, clientId, state);
         log.debug("Getting code. Code = " + code);
         TokenResponse tokenResponse = changeCodeForToken(code, clientId, environment.getRequiredProperty("clientSecret"));
-        assert tokenResponse != null;
         String accessToken = tokenResponse.getAccessToken();
         log.debug("Changing code for token. Token = " + accessToken); // Do not log token in production!
         return tokenResponse;
@@ -60,7 +61,7 @@ public class AuthService {
      * @return code
      * @throws MalformedURLException if the uri is incorrect
      */
-    private String getCode(String redirectUri, String clientId, String state) throws MalformedURLException {
+    private String getCode(String redirectUri, String clientId, String state) throws MalformedURLException, GetCodeException {
         String codeUri = environment.getProperty("codeUri");
         MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
         map.add("redirect_uri", redirectUri);
@@ -75,15 +76,21 @@ public class AuthService {
                 .build()
                 .toUri();
         ResponseEntity<Object> tokenEntity = restTemplate.getForEntity(uri, Object.class);
+        assert (!tokenEntity.getHeaders().get("location").isEmpty());
         String location = (tokenEntity.getHeaders().get("location")).get(0);
+        assert (location.contains("code="));
         URL urlLocation = new URL(location);
         List<String> params = Arrays.asList(urlLocation.getQuery().split("&"));
         String code = params.stream()
-                .map(q->q.split("="))
-                .filter(a->a[0].equals("code"))
+                .map(keyValue->keyValue.split("="))
+                .filter(keyValue->keyValue[0].equals("code"))
+                .filter(value->value.length==2) // make sure that there is a value
                 .map(a->a[1])
                 .findAny()
                 .orElse("");
+        if (code.isEmpty()) {
+            throw new GetCodeException("Error during obtaining code");
+        }
         return code;
     }
 
@@ -94,7 +101,7 @@ public class AuthService {
      * @param secret secret obtained during app initialization at developers portal
      * @return access token, refresh token
      */
-    private TokenResponse changeCodeForToken(String code, String clientId, String secret) {
+    private TokenResponse changeCodeForToken(String code, String clientId, String secret) throws ExchangeCodeForTokenException {
         String tokenUri = environment.getProperty("tokenUri");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -109,7 +116,7 @@ public class AuthService {
         if (tokenEntity.getStatusCode().equals(OK)) {
             return tokenEntity.getBody();
         }
-        return null;
+        throw new ExchangeCodeForTokenException("Error during exchanging code for token");
     }
 
     /**
@@ -119,7 +126,7 @@ public class AuthService {
      * @param secret secret obtained during app initialization at developers portal
      * @return access token
      */
-    public String refreshToken(String refreshToken, String clientId, String secret) {
+    public String refreshAccessToken(String refreshToken, String clientId, String secret) {
         String tokenUri = environment.getProperty("tokenUri");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);

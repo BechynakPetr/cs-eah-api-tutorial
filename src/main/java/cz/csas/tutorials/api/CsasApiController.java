@@ -1,9 +1,12 @@
 package cz.csas.tutorials.api;
 
+import cz.csas.tutorials.api.model.ExchangeCodeForTokenException;
 import cz.csas.tutorials.api.model.ExpiredTokenException;
+import cz.csas.tutorials.api.model.RefreshAccessTokenException;
 import cz.csas.tutorials.api.model.TokenResponse;
 import cz.csas.tutorials.api.services.AuthService;
 import cz.csas.tutorials.api.services.CorpService;
+import cz.csas.tutorials.api.model.GetCodeException;
 import cz.csas.tutorials.api.services.PersService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,21 +62,23 @@ public class CsasApiController {
     public String getCorpAccounts(@RequestParam(defaultValue = "0") String page,
                                   @RequestParam(defaultValue = "1") String size,
                                   @RequestParam(required = false) String sort,
-                                  @RequestParam(required = false) String order) throws MalformedURLException {
+                                  @RequestParam(required = false) String order) throws MalformedURLException, RefreshAccessTokenException,
+            GetCodeException, ExchangeCodeForTokenException {
         checkAccessToken();
         String accounts = null;
         try {
             accounts = corpService.getCorpAccounts(accessToken, webApiKey, page, size, sort, order);
             log.debug("Calling corporate accounts API. Response = " + accounts);
         } catch (ExpiredTokenException e) {
-            String accessToken = authService.refreshToken(refreshToken, clientId, clientSecret);
+            accessToken = authService.refreshAccessToken(refreshToken, clientId, clientSecret);
             log.debug("Refreshing access token with refresh token = " + refreshToken); // Do not log token in production!
             log.debug("Obtained new access token = " + accessToken); // Do not log token in production!
             try {
                 accounts = corpService.getCorpAccounts(accessToken, webApiKey, page, size, sort, order);
                 log.debug("Calling corporate accounts API with new access token. Response = " + accounts);
             } catch (ExpiredTokenException e1) {
-                e1.printStackTrace();
+                log.error("Error when trying to refresh access token");
+                throw new RefreshAccessTokenException("Error when trying to refresh access token");
             }
         }
 
@@ -88,21 +93,23 @@ public class CsasApiController {
      * @throws MalformedURLException if redirectUri is not correct URI
      */
     @GetMapping("/corpaccbalance")
-    public String getCorpAccBalance(@RequestParam(defaultValue = "1") String id) throws MalformedURLException {
+    public String getCorpAccBalance(@RequestParam(defaultValue = "1") String id) throws MalformedURLException, RefreshAccessTokenException,
+            GetCodeException, ExchangeCodeForTokenException {
         checkAccessToken();
         String accounts = null;
         try {
             accounts = corpService.getCorpAccBalance(accessToken, webApiKey, id);
             log.debug("Calling corporate accounts balance check API. Response = " + accounts);
         } catch (ExpiredTokenException e) {
-            String newAccessToken = authService.refreshToken(refreshToken, clientId, clientSecret);
+            accessToken = authService.refreshAccessToken(refreshToken, clientId, clientSecret);
             log.debug("Refreshing access token with refresh token = " + refreshToken); // Do not log token in production!
-            log.debug("Obtained new access token = " + newAccessToken); // Do not log token in production!
+            log.debug("Obtained new access token = " + accessToken); // Do not log token in production!
             try {
                 accounts = corpService.getCorpAccBalance(accessToken, webApiKey, id);
                 log.debug("Calling corporate accounts balance check API with new access token. Response = " + accounts);
             } catch (ExpiredTokenException e1) {
-                e1.printStackTrace();
+                log.error("Error when trying to refresh access token");
+                throw new RefreshAccessTokenException("Error when trying to refresh access token");
             }
         }
 
@@ -130,21 +137,22 @@ public class CsasApiController {
                                   @RequestParam(required = false) String order,
                                   @RequestParam(defaultValue = "2016-09-04T00:00:00+01:00") String startDate,
                                   @RequestParam(defaultValue = "2018-09-04T00:00:00+01:00") String endDate
-    ) throws MalformedURLException {
+    ) throws MalformedURLException, RefreshAccessTokenException, GetCodeException, ExchangeCodeForTokenException {
         checkAccessToken();
         String transHistory = null;
         try {
             transHistory = corpService.getTransHistory(id, accessToken, webApiKey, page, size, sort, order, startDate, endDate);
             log.debug("Calling corporate transaction history API. Response = " + transHistory);
         } catch (ExpiredTokenException e) {
-            String newAccessToken = authService.refreshToken(refreshToken, clientId, clientSecret);
+            accessToken = authService.refreshAccessToken(refreshToken, clientId, clientSecret);
             log.debug("Refreshing access token with refresh token = " + refreshToken); // Do not log token in production!
-            log.debug("Obtained new access token = " + newAccessToken); // Do not log token in production!
+            log.debug("Obtained new access token = " + accessToken); // Do not log token in production!
             try {
                 transHistory = corpService.getCorpAccounts(accessToken, webApiKey, page, size, sort, order);
                 log.debug("Calling corporate transaction history API with new access token. Response = " + transHistory);
             } catch (ExpiredTokenException e1) {
-                e1.printStackTrace();
+                log.error("Error when trying to refresh access token");
+                throw new RefreshAccessTokenException("Error when trying to refresh access token");
             }
         }
 
@@ -172,27 +180,28 @@ public class CsasApiController {
                                   @RequestParam(required = false) String order,
                                   @RequestParam(required = false) String type,
                                   @RequestParam(required = false) String flagFilter
-    ) throws MalformedURLException {
+    ) throws MalformedURLException, RefreshAccessTokenException, GetCodeException, ExchangeCodeForTokenException {
         checkAccessToken();
         String accounts = null;
         try {
             accounts = persService.getPersAccounts(accessToken, webApiKey, page, size, sort, order, type, flagFilter);
             log.debug("Calling corporate accounts API. Response = " + accounts);
         } catch (ExpiredTokenException e) {
-            String newAccessToken = authService.refreshToken(refreshToken, clientId, clientSecret);
+            accessToken = authService.refreshAccessToken(refreshToken, clientId, clientSecret);
             log.debug("Refreshing access token with refresh token = " + refreshToken); // Do not log token in production!
-            log.debug("Obtained new access token = " + newAccessToken); // Do not log token in production!
+            log.debug("Obtained new access token = " + accessToken); // Do not log token in production!
             try {
                 accounts = persService.getPersAccounts(accessToken, webApiKey, page, size, sort, order, type, flagFilter);
                 log.debug("Calling corporate accounts API with new access token. Response = " + accounts);
             } catch (ExpiredTokenException e1) {
-                e1.printStackTrace();
+                log.error("Error when trying to refresh access token");
+                throw new RefreshAccessTokenException("Error when trying to refresh access token");
             }
         }
         return accounts;
     }
 
-    private void checkAccessToken() throws MalformedURLException {
+    private void checkAccessToken() throws MalformedURLException, GetCodeException, ExchangeCodeForTokenException {
         if (accessToken == null) {
             TokenResponse tokenResponse = authService.getNewTokenResponse(redirectUri, clientId);
             accessToken = tokenResponse.getAccessToken();
