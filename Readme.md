@@ -1,7 +1,7 @@
 Tutorial - how to connect to Csas API
 =====================================
 Java skeleton web-based application for connection to Csas.
-For more information visit: https://developers.erstegroup.com/docs/guides/csas-getting-started
+For more information visit: https://developers.erstegroup.com/docs/guides/csas-tutorials-accounts-list
 
 This is a Java 8, spring-boot project. To run the app execute:
 
