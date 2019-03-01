@@ -7,8 +7,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -54,11 +54,15 @@ public class PersService {
         String persAccountsUrl = builder.buildAndExpand().toString();
 
         HttpEntity<Object> entity = new HttpEntity<>(headers);
-        ResponseEntity<String> accounts = restTemplate.exchange(persAccountsUrl, HttpMethod.GET, entity, String.class);
-        if (HttpStatus.UNAUTHORIZED.equals(accounts.getStatusCode())) {
-            throw new ExpiredTokenException("Token has expired.");
+        try {
+            return restTemplate.exchange(persAccountsUrl, HttpMethod.GET, entity, String.class).getBody();
+        } catch (HttpClientErrorException ex) {
+            if (HttpStatus.FORBIDDEN.equals(ex.getStatusCode())) {
+                throw new ExpiredTokenException("Token has expired or is invalid.");
+            } else {
+                throw ex;
+            }
         }
-        return accounts.getBody();
     }
 
 }

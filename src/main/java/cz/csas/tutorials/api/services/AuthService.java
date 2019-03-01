@@ -1,32 +1,28 @@
 package cz.csas.tutorials.api.services;
 
 import cz.csas.tutorials.api.model.ExchangeCodeForTokenException;
-import cz.csas.tutorials.api.model.GetCodeException;
+import cz.csas.tutorials.api.model.ExpiredRefreshTokenException;
+import cz.csas.tutorials.api.model.StateNotFoundException;
 import cz.csas.tutorials.api.model.TokenResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.springframework.http.HttpStatus.OK;
 
 @Service
 @Slf4j
 public class AuthService {
+    private final String state = "someValue";
     private final RestTemplate restTemplate;
     private final Environment environment;
 
@@ -37,72 +33,53 @@ public class AuthService {
     }
 
     /**
-     * Gets code and changes it for access token.
-     * @param redirectUri uri where the browser will redirect after getting code. Not used in this example.
-     * @param clientId application id
-     * @return access token
-     * @throws MalformedURLException if the uri is incorrect
+     * Builds url that is used for user authorization.
+     *
+     * @param redirectUri where the user should be redirected after successful authorization
+     * @param clientId    application id
+     * @return url for authorization
      */
-    public TokenResponse getNewTokenResponse(String redirectUri, String clientId) throws MalformedURLException, GetCodeException, ExchangeCodeForTokenException {
-        String state = "someValue"; // useful when using redirection from id provider get-code call, not used here
-        String code = getCode(redirectUri, clientId, state);
-        log.debug("Getting code. Code = " + code);
-        TokenResponse tokenResponse = changeCodeForToken(code, clientId, environment.getRequiredProperty("clientSecret"));
-        String accessToken = tokenResponse.getAccessToken();
-        log.debug("Changing code for token. Token = " + accessToken); // Do not log token in production!
-        return tokenResponse;
+    public String getAuthorizationUrl(String redirectUri, String clientId) {
+        String authorizationUrl = environment.getRequiredProperty("authorizationUrl");
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(authorizationUrl)
+                .queryParam("redirect_uri", redirectUri)
+                .queryParam("client_id", clientId)
+                .queryParam("response_type", "code")
+                .queryParam("access_type", "offline")
+                .queryParam("state", state)
+                .queryParam("scope", "aisp,coract,peract");
+
+        return builder.toUriString();
     }
 
     /**
-     * Gets code.
-     * @param redirectUri uri where the browser will redirect after getting code. Not used in this example.
-     * @param clientId application id
-     * @param state variable used to pass any information through getting code process, see Oauth for details
-     * @return code
-     * @throws MalformedURLException if the uri is incorrect
+     * Checks that received state is the one we sent to CSAS and exchange received code for for access and refresh tokens.
+     *
+     * @param code          for exchanging for tokens
+     * @param receivedState should match with the one we sent to CSAS
+     * @return access and refresh tokens
+     * @throws StateNotFoundException        if received state is not the one we sent to CSAS.
+     * @throws ExchangeCodeForTokenException if anything bad happens during exchanging code.
      */
-    private String getCode(String redirectUri, String clientId, String state) throws MalformedURLException, GetCodeException {
-        String codeUri = environment.getProperty("codeUri");
-        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
-        map.add("redirect_uri", redirectUri);
-        map.add("client_id", clientId);
-        map.add("response_type", "code");
-        map.add("access_type", "offline");
-        map.add("state", state);
-
-        URI uri = UriComponentsBuilder.fromUriString(codeUri)
-                .queryParams(map)
-                .encode()
-                .build()
-                .toUri();
-        ResponseEntity<Object> tokenEntity = restTemplate.getForEntity(uri, Object.class);
-        assert (!tokenEntity.getHeaders().get("location").isEmpty());
-        String location = (tokenEntity.getHeaders().get("location")).get(0);
-        assert (location.contains("code="));
-        URL urlLocation = new URL(location);
-        List<String> params = Arrays.asList(urlLocation.getQuery().split("&"));
-        String code = params.stream()
-                .map(keyValue->keyValue.split("="))
-                .filter(keyValue->keyValue[0].equals("code"))
-                .filter(value->value.length==2) // make sure that there is a value
-                .map(a->a[1])
-                .findAny()
-                .orElse("");
-        if (code.isEmpty()) {
-            throw new GetCodeException("Error during obtaining code");
+    public TokenResponse obtainTokens(String code, String receivedState) throws ExchangeCodeForTokenException, StateNotFoundException {
+        if (state.equals(receivedState)) {
+            return changeCodeForToken(code, environment.getRequiredProperty("clientId"), environment.getRequiredProperty("clientSecret"));
+        } else {
+            throw new StateNotFoundException("Received state not found");
         }
-        return code;
     }
 
     /**
-     * Exchenages code for token.
-     * @param code obtained from identity provider
+     * Exchanges code for token.
+     *
+     * @param code     obtained from identity provider
      * @param clientId application id
-     * @param secret secret obtained during app initialization at developers portal
+     * @param secret   secret obtained during app initialization at developers portal
      * @return access token, refresh token
+     * @throws ExchangeCodeForTokenException if anything bad happens during exchanging code.
      */
     private TokenResponse changeCodeForToken(String code, String clientId, String secret) throws ExchangeCodeForTokenException {
-        String tokenUri = environment.getProperty("tokenUri");
+        String tokenUrl = environment.getProperty("tokenUrl");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
@@ -112,22 +89,24 @@ public class AuthService {
         map.add("client_id", clientId);
         map.add("client_secret", secret);
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
-        ResponseEntity<TokenResponse> tokenEntity = restTemplate.postForEntity(tokenUri, request, TokenResponse.class);
-        if (tokenEntity.getStatusCode().equals(OK)) {
+        try {
+            ResponseEntity<TokenResponse> tokenEntity = restTemplate.postForEntity(tokenUrl, request, TokenResponse.class);
             return tokenEntity.getBody();
+        } catch (Exception ex) {
+            throw new ExchangeCodeForTokenException("Error during exchanging code for token");
         }
-        throw new ExchangeCodeForTokenException("Error during exchanging code for token");
     }
 
     /**
      * Gets new access token based on refresh token.
+     *
      * @param refreshToken refresh token obtained together with access token
-     * @param clientId application id
-     * @param secret secret obtained during app initialization at developers portal
+     * @param clientId     application id
+     * @param secret       secret obtained during app initialization at developers portal
      * @return access token
      */
-    public String refreshAccessToken(String refreshToken, String clientId, String secret) {
-        String tokenUri = environment.getProperty("tokenUri");
+    public String getNewAccessToken(String refreshToken, String clientId, String secret) throws ExpiredRefreshTokenException {
+        String tokenUrl = environment.getProperty("tokenUrl");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
@@ -137,10 +116,15 @@ public class AuthService {
         map.add("client_id", clientId);
         map.add("client_secret", secret);
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
-        ResponseEntity<TokenResponse> tokenEntity = restTemplate.postForEntity(tokenUri, request, TokenResponse.class);
-        if (tokenEntity.getStatusCode().equals(OK)) {
+        try {
+            ResponseEntity<TokenResponse> tokenEntity = restTemplate.postForEntity(tokenUrl, request, TokenResponse.class);
             return tokenEntity.getBody().getAccessToken();
+        } catch (HttpClientErrorException ex) {
+            if (HttpStatus.UNAUTHORIZED.equals(ex.getStatusCode())) {
+                throw new ExpiredRefreshTokenException("Refresh token has expired.");
+            } else {
+                throw ex;
+            }
         }
-        return "";
     }
 }
