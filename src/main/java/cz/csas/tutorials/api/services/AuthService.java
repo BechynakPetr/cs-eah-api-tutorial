@@ -47,7 +47,7 @@ public class AuthService {
                 .queryParam("response_type", "code")
                 .queryParam("access_type", "offline")
                 .queryParam("state", state)
-                .queryParam("scope", "aisp,coract,peract");
+                .queryParam("scope", "AISP,coract,peract");
 
         return builder.toUriString();
     }
@@ -63,7 +63,8 @@ public class AuthService {
      */
     public TokenResponse obtainTokens(String code, String receivedState) throws ExchangeCodeForTokenException, StateNotFoundException {
         if (state.equals(receivedState)) {
-            return changeCodeForToken(code, environment.getRequiredProperty("clientId"), environment.getRequiredProperty("clientSecret"));
+            return changeCodeForToken(code, environment.getRequiredProperty("clientId"), environment.getRequiredProperty("clientSecret"),
+                    environment.getRequiredProperty("authorizationRedirectUri"));
         } else {
             throw new StateNotFoundException("Received state not found");
         }
@@ -75,10 +76,11 @@ public class AuthService {
      * @param code     obtained from identity provider
      * @param clientId application id
      * @param secret   secret obtained during app initialization at developers portal
+     * @param authorizationRedirectUri redirect URI sent on auth endpoint
      * @return access token, refresh token
      * @throws ExchangeCodeForTokenException if anything bad happens during exchanging code.
      */
-    private TokenResponse changeCodeForToken(String code, String clientId, String secret) throws ExchangeCodeForTokenException {
+    private TokenResponse changeCodeForToken(String code, String clientId, String secret, String authorizationRedirectUri) throws ExchangeCodeForTokenException {
         String tokenUrl = environment.getProperty("tokenUrl");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -88,6 +90,7 @@ public class AuthService {
         map.add("code", code);
         map.add("client_id", clientId);
         map.add("client_secret", secret);
+        map.add("redirect_uri", authorizationRedirectUri);
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
         try {
             ResponseEntity<TokenResponse> tokenEntity = restTemplate.postForEntity(tokenUrl, request, TokenResponse.class);
